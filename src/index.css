@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    /* Deep indigo #3730A3 */
+    --primary: 244 55% 41%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 40%;
+    --accent: 244 60% 96%;
+    --accent-foreground: 244 55% 32%;
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 89%;
+    --input: 220 13% 85%;
+    --ring: 244 55% 41%;
+    --radius: 0.625rem;
+
+    /* Traffic light – foreground colours meet 4.5:1 against their bg */
+    --status-red: 0 74% 36%;
+    --status-red-bg: 0 86% 96%;
+    --status-amber: 28 90% 30%;
+    --status-amber-bg: 45 96% 92%;
+    --status-green: 142 72% 24%;
+    --status-green-bg: 141 76% 94%;
+    --status-grey: 220 9% 36%;
+    --status-grey-bg: 220 14% 94%;
+  }
+
+  .dark {
+    --background: 224 24% 8%;
+    --foreground: 220 14% 94%;
+    --card: 224 22% 11%;
+    --card-foreground: 220 14% 94%;
+    --popover: 224 22% 11%;
+    --popover-foreground: 220 14% 94%;
+    --primary: 239 84% 74%;
+    --primary-foreground: 244 55% 14%;
+    --secondary: 224 16% 17%;
+    --secondary-foreground: 220 14% 94%;
+    --muted: 224 16% 17%;
+    --muted-foreground: 220 9% 66%;
+    --accent: 244 30% 20%;
+    --accent-foreground: 239 84% 86%;
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 14% 22%;
+    --input: 224 14% 26%;
+    --ring: 239 84% 74%;
+
+    --status-red: 0 90% 76%;
+    --status-red-bg: 0 50% 18%;
+    --status-amber: 40 95% 68%;
+    --status-amber-bg: 35 60% 16%;
+    --status-green: 142 65% 66%;
+    --status-green-bg: 142 45% 14%;
+    --status-grey: 220 9% 72%;
+    --status-grey-bg: 224 14% 20%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  html {
+    font-size: 14px;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
