@@ -3,7 +3,7 @@
  * SoD role template (download + upload).
  */
 import * as XLSX from "xlsx";
-import type { Role, RoleType, SubjectResult, Process } from "@/types";
+import type { Role, RoleType, SubjectResult, Process, OrgLevel } from "@/types";
 import { PROCESSES } from "@/types";
 import { audit, commit, db, latency } from "./db";
 import { authsForRole, evaluate, grantsForRole, bestRemediation, type EvalContext, type Remediation } from "@/lib/sod";
@@ -65,7 +65,7 @@ export function proposedAuths(tcode: string) {
 export function syncOrgLevels(tcodes: string[], current: Role["orgLevels"]): Role["orgLevels"] {
   const needed = new Set<string>();
   for (const tc of tcodes) for (const p of SU24[tc] ?? []) if (p.low.startsWith("$")) needed.add(p.low.slice(1));
-  const out = [...needed].map((field) => {
+  const out: OrgLevel[] = [...needed].map((field) => {
     const existing = current.find((o) => o.field === field);
     return { field, label: ORG_LEVEL_DEFS[field] ?? field, low: existing?.low ?? "", high: existing?.high, required: true };
   });
