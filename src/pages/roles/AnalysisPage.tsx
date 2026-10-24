@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress, Skeleton } from "@/components/ui/misc";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useService } from "@/services/db";
+import { useService, db } from "@/services/db";
+import { toast } from "sonner";
 import { getRun, getRuns, heatmapCell } from "@/services/analysisService";
 import { useApp } from "@/context/AppContext";
 import { useThemeColors } from "@/lib/useThemeColors";
@@ -36,6 +37,7 @@ export default function AnalysisPage() {
   const processF = params.get("process") ?? "all";
   const [q, setQ] = React.useState(params.get("subject") ?? "");
   const [sel, setSel] = React.useState<{ hit: RiskHit; result: SubjectResult }>();
+  const [tableMode, setTableMode] = React.useState<"hits" | "subjects">("hits");
 
   const setParam = (k: string, v: string) => {
     const p = new URLSearchParams(params);
@@ -271,9 +273,38 @@ export default function AnalysisPage() {
           <Card>
             <CardHeader className="flex-row flex-wrap items-end justify-between gap-3 space-y-0">
               <div>
-                <CardTitle>Results</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle>Results</CardTitle>
+                  <div className="inline-flex rounded-lg bg-muted p-0.5 text-xs">
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded px-2.5 py-1 font-medium transition-colors",
+                        tableMode === "hits" && filteredHits.length > 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setTableMode("hits")}
+                      disabled={filteredHits.length === 0}
+                    >
+                      Risk hits ({filteredHits.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded px-2.5 py-1 font-medium transition-colors",
+                        tableMode === "subjects" || filteredHits.length === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setTableMode("subjects")}
+                    >
+                      {kind}s ({heatRows.length})
+                    </button>
+                  </div>
+                </div>
                 <CardDescription>
-                  {filteredHits.length} risk hit(s) · click a row for the drill-down <HelpTip term="Risk" />
+                  {filteredHits.length === 0 && heatRows.length > 0
+                    ? `${heatRows.length} ${kind.toLowerCase()}(s) matching filter · all risk-free & compliant`
+                    : tableMode === "hits"
+                    ? `${filteredHits.length} risk hit(s) · click a row for the drill-down`
+                    : `${heatRows.length} ${kind.toLowerCase()}(s) listed · click to inspect`}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-end gap-2">
@@ -288,7 +319,7 @@ export default function AnalysisPage() {
                     onChange={(e) => {
                       setQ(e.target.value);
                     }}
-                    placeholder={kind === "Role" ? "Z_FI_…" : "User ID"}
+                    placeholder={kind === "Role" ? "Z_FI_…" : "User ID or name"}
                   />
                 </div>
                 <div>
@@ -311,26 +342,7 @@ export default function AnalysisPage() {
                 </div>
               </div>
             </CardHeader>
-            {filteredHits.length === 0 ? (
-              <CardContent>
-                <EmptyState
-                  icon={ShieldCheck}
-                  title={allHits.length ? "No risk hits match these filters." : `No risks fire for any ${kind.toLowerCase()} in this run.`}
-                  action={
-                    allHits.length ? (
-                      <Button
-                        onClick={() => {
-                          setQ("");
-                          setParams(runId ? { run: runId } : {}, { replace: true });
-                        }}
-                      >
-                        Clear filters
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </CardContent>
-            ) : (
+            {tableMode === "hits" && filteredHits.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -366,6 +378,79 @@ export default function AnalysisPage() {
                   ))}
                 </TableBody>
               </Table>
+            ) : heatRows.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{kind} ID</TableHead>
+                    <TableHead>{kind === "User" ? "User Name" : "Description"}</TableHead>
+                    <TableHead>{kind === "User" ? "Department" : "Process"}</TableHead>
+                    <TableHead>{kind === "User" ? "Assigned Roles" : "Type"}</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>SoD Result</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {heatRows.map((s) => {
+                    const u = kind === "User" ? db.users.find((x) => x.id === s.subject) : undefined;
+                    const r = kind === "Role" ? db.roles.find((x) => x.name === s.subject) : undefined;
+                    return (
+                      <TableRow
+                        key={s.subject}
+                        tabIndex={0}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          if (s.hits.length > 0) {
+                            setSel({ hit: s.hits[0], result: s });
+                          } else {
+                            toast.info(`${kind} ${s.subject} is Clean`, {
+                              description: `No SoD risks detected. All assigned transactions are risk-free. Status: Clean (Risk OK).`,
+                            });
+                          }
+                        }}
+                      >
+                        <TableCell className="font-mono text-xs font-semibold">{s.subject}</TableCell>
+                        <TableCell className="font-medium">{u ? u.name : r ? r.description : s.subject}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{u ? u.department : r ? r.process : "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {u ? `${u.roles.length} role(s): ${u.roles.slice(0, 2).join(", ")}${u.roles.length > 2 ? "…" : ""}` : r ? r.type : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={s.status} size="sm" />
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {s.hits.length === 0 ? (
+                            <span className="font-medium text-status-green flex items-center gap-1.5">
+                              ✓ Risk OK · Clean
+                            </span>
+                          ) : (
+                            <span className="font-medium text-status-red">
+                              {s.hits.length} risk hit(s)
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <CardContent>
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="No results match these filters."
+                  action={
+                    <Button
+                      onClick={() => {
+                        setQ("");
+                        setParams(runId ? { run: runId } : {}, { replace: true });
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  }
+                />
+              </CardContent>
             )}
           </Card>
 

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, Play, RefreshCw, SearchX, Users, X } from "lucide-react";
+import { Download, FileSpreadsheet, Play, RefreshCw, SearchX, ShieldCheck, Users, X } from "lucide-react";
 import { PageHeader, EmptyState, HelpTip } from "@/components/common";
 import { StatusBadge, StatusLegend } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/misc";
 import { Label } from "@/components/ui/label";
 import { db, useService } from "@/services/db";
 import { getRoles, snapshotInfo, syncNow } from "@/services/sapService";
-import { roleStatuses, runAnalysis } from "@/services/analysisService";
+import { roleStatuses, runAnalysis, userResult } from "@/services/analysisService";
 import { downloadRoleTemplate } from "@/services/roleBuilderService";
 import { useApp } from "@/context/AppContext";
 import { PROCESSES, type Status } from "@/types";
@@ -28,28 +28,46 @@ export default function RolesPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { startJob, can, systemId } = useApp();
+  const [view, setView] = React.useState<"roles" | "users">((params.get("view") as "roles" | "users") ?? "roles");
+
   const { data, loading } = useService(async () => {
     const roles = await getRoles();
     const statuses = roleStatuses();
     const userCount = Object.fromEntries(roles.map((r) => [r.name, db.users.filter((u) => u.roles.includes(r.name)).length]));
-    return { roles, statuses, userCount };
+    const users = db.users.map((u) => {
+      const res = userResult(u);
+      return {
+        ...u,
+        status: res.status,
+        hits: res.hits,
+      };
+    });
+    return { roles, statuses, userCount, users };
   });
 
   const [pattern, setPattern] = React.useState(params.get("q") ?? "");
   const [type, setType] = React.useState(params.get("type") ?? "all");
   const [process, setProcess] = React.useState(params.get("process") ?? "all");
+  const [dept, setDept] = React.useState(params.get("dept") ?? "all");
   const [status, setStatus] = React.useState(params.get("status") ?? "all");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [templateOpen, setTemplateOpen] = React.useState(false);
 
   React.useEffect(() => {
     const p = new URLSearchParams();
+    if (view !== "roles") p.set("view", view);
     if (pattern) p.set("q", pattern);
-    if (type !== "all") p.set("type", type);
-    if (process !== "all") p.set("process", process);
+    if (view === "roles") {
+      if (type !== "all") p.set("type", type);
+      if (process !== "all") p.set("process", process);
+    } else {
+      if (dept !== "all") p.set("dept", dept);
+    }
     if (status !== "all") p.set("status", status);
     setParams(p, { replace: true });
-  }, [pattern, type, process, status, setParams]);
+  }, [view, pattern, type, process, dept, status, setParams]);
+
+  const departments = React.useMemo(() => (data ? [...new Set(data.users.map((u) => u.department))] : []), [data]);
 
   const rows = React.useMemo(() => {
     if (!data) return [];
@@ -61,6 +79,17 @@ export default function RolesPage() {
         (status === "all" || data.statuses[r.name] === status),
     );
   }, [data, pattern, type, process, status]);
+
+  const userRows = React.useMemo(() => {
+    if (!data) return [];
+    const pat = pattern.trim().toLowerCase();
+    return data.users.filter(
+      (u) =>
+        (!pat || u.id.toLowerCase().includes(pat) || u.name.toLowerCase().includes(pat) || u.department.toLowerCase().includes(pat)) &&
+        (dept === "all" || u.department === dept) &&
+        (status === "all" || u.status === status),
+    );
+  }, [data, pattern, dept, status]);
 
   const parentRef = React.useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => parentRef.current, estimateSize: () => ROW_H, overscan: 12 });
@@ -83,6 +112,7 @@ export default function RolesPage() {
     setPattern("");
     setType("all");
     setProcess("all");
+    setDept("all");
     setStatus("all");
   };
 
@@ -97,11 +127,20 @@ export default function RolesPage() {
   };
 
   const analyseAllUsers = () => {
-    toast.info("Background job started", { description: "You can keep working – we’ll notify you when it finishes." });
+    toast.info("Background job started", { description: "Analysing all users against active SoD rules…" });
     startJob("User analysis (all users)", async (p) => {
       const run = await runAnalysis({ allUsers: true }, p);
       const red = run.results.filter((r) => r.status === "red").length;
-      return { message: `${run.results.length} users analysed · ${red} with Red risks`, link: `/roles/analysis?run=${run.runId}` };
+      const green = run.results.filter((r) => r.status === "green").length;
+      setView("users");
+      toast.success("User analysis completed", {
+        description: `${run.results.length} users analysed: ${green} Risk OK (Clean), ${red} with Red risks.`,
+        action: {
+          label: "View Report",
+          onClick: () => navigate(`/roles/analysis?run=${run.runId}&kind=User`),
+        },
+      });
+      return { message: `${run.results.length} users analysed · ${red} with Red risks · ${green} Risk OK`, link: `/roles/analysis?run=${run.runId}&kind=User` };
     });
   };
 
@@ -112,6 +151,25 @@ export default function RolesPage() {
     });
 
   const exportExcel = () => {
+    if (view === "users") {
+      const ws = XLSX.utils.json_to_sheet(
+        userRows.map((u) => ({
+          "User ID": u.id,
+          Name: u.name,
+          Department: u.department,
+          Roles: u.roles.join(", "),
+          Status: { red: "Red – Act now", amber: "Amber – Review", green: "Green – Clean (Risk OK)", grey: "Grey – Not analysed" }[u.status],
+          "Risk hits": u.hits.length,
+          "Valid to": u.validTo,
+          Locked: u.locked ? "Yes" : "No",
+        })),
+      );
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+      XLSX.writeFile(wb, `MySODAI_users_${system.sid}_${todayStamp()}.xlsx`);
+      toast.success(`Exported ${userRows.length} users`);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(
       rows.map((r) => ({
         "Role name": r.name,
@@ -135,29 +193,65 @@ export default function RolesPage() {
       <PageHeader
         crumbs={[{ label: "Home", to: "/" }, { label: "Roles & Analysis" }]}
         title="Roles & Analysis"
-        description="All roles from the latest S/4HANA snapshot with their SoD status. Select roles to analyse them against the current ruleset."
+        description="All roles and users from the latest S/4HANA snapshot with their SoD status. Select roles or analyse users to evaluate compliance against active rules."
         actions={
           <>
-            <Button variant="outline" onClick={() => setTemplateOpen(true)}>
-              <Download /> Download SoD role template
-            </Button>
-            <Button variant="outline" onClick={exportExcel} disabled={!rows.length}>
+            {view === "roles" && (
+              <Button variant="outline" onClick={() => setTemplateOpen(true)}>
+                <Download /> Download SoD role template
+              </Button>
+            )}
+            <Button variant="outline" onClick={exportExcel} disabled={view === "roles" ? !rows.length : !userRows.length}>
               <FileSpreadsheet /> Export to Excel
             </Button>
           </>
         }
       />
 
+      <div className="mb-4 inline-flex rounded-lg bg-muted p-1" role="group" aria-label="View selection">
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors",
+            view === "roles" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => setView("roles")}
+        >
+          <ShieldCheck className="h-4 w-4" /> Roles ({data?.roles.length ?? 0})
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors",
+            view === "users" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => setView("users")}
+        >
+          <Users className="h-4 w-4" /> Users ({data?.users.length ?? 0})
+        </button>
+      </div>
+
       <Card className="mb-4 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">
-            <Label htmlFor="role-pattern" className="mb-1.5 block text-xs text-muted-foreground">
-              Role name or pattern
+            <Label htmlFor="search-pattern" className="mb-1.5 block text-xs text-muted-foreground">
+              {view === "roles" ? "Role name or pattern" : "User ID, name or department"}
             </Label>
-            <Input id="role-pattern" placeholder="e.g. Z_FI_*" value={pattern} onChange={(e) => setPattern(e.target.value)} />
+            <Input
+              id="search-pattern"
+              placeholder={view === "roles" ? "e.g. Z_FI_*" : "e.g. ASHARMA, Sharma, Accounts Payable…"}
+              value={pattern}
+              onChange={(e) => setPattern(e.target.value)}
+            />
           </div>
-          <FilterSelect label="Type" value={type} onChange={setType} options={["Single", "Composite", "Derived"]} />
-          <FilterSelect label="Process" value={process} onChange={setProcess} options={PROCESSES} />
+          {view === "roles" ? (
+            <>
+              <FilterSelect label="Type" value={type} onChange={setType} options={["Single", "Composite", "Derived"]} />
+              <FilterSelect label="Process" value={process} onChange={setProcess} options={PROCESSES} />
+            </>
+          ) : (
+            <FilterSelect label="Department" value={dept} onChange={setDept} options={departments} />
+          )}
           <FilterSelect
             label="Status"
             value={status}
@@ -165,7 +259,7 @@ export default function RolesPage() {
             options={["red", "amber", "green", "grey"]}
             render={(s) => <StatusBadge status={s as Status} size="sm" />}
           />
-          {(pattern || type !== "all" || process !== "all" || status !== "all") && (
+          {(pattern || (view === "roles" && (type !== "all" || process !== "all")) || (view === "users" && dept !== "all") || status !== "all") && (
             <Button variant="ghost" onClick={clearFilters}>
               <X /> Clear
             </Button>
@@ -175,10 +269,16 @@ export default function RolesPage() {
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={analyseSelected} disabled={!selected.size || !can("edit")}>
-            <Play /> Analyse selected{selected.size ? ` (${selected.size})` : ""}
-          </Button>
-          <Button variant="secondary" onClick={analyseAllUsers} disabled={!can("edit")}>
+          {view === "roles" ? (
+            <Button onClick={analyseSelected} disabled={!selected.size || !can("edit")}>
+              <Play /> Analyse selected{selected.size ? ` (${selected.size})` : ""}
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => navigate("/roles/analysis?kind=User")}>
+              <ShieldCheck /> View user analysis report
+            </Button>
+          )}
+          <Button variant={view === "users" ? "default" : "secondary"} onClick={analyseAllUsers} disabled={!can("edit")}>
             <Users /> Analyse all users (background job)
           </Button>
         </div>
@@ -200,11 +300,87 @@ export default function RolesPage() {
               <Skeleton key={i} className="h-10" />
             ))}
           </div>
-        ) : rows.length === 0 ? (
+        ) : view === "roles" ? (
+          rows.length === 0 ? (
+            <EmptyState
+              className="m-4"
+              icon={SearchX}
+              title="No roles match these filters."
+              action={
+                <Button onClick={clearFilters}>
+                  <X /> Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <div ref={parentRef} className="max-h-[calc(100vh-380px)] min-h-[320px] overflow-auto" role="region" aria-label="Role list" tabIndex={-1}>
+              <table className="w-full text-sm" aria-rowcount={rows.length + 1}>
+                <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
+                  <tr className="border-b text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <th className="w-10 px-3 py-2.5">
+                      <Checkbox
+                        aria-label="Select all visible roles"
+                        checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                        onCheckedChange={(c) => setSelected(c ? new Set(rows.map((r) => r.name)) : new Set())}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5">Role name</th>
+                    <th className="px-3 py-2.5">Description</th>
+                    <th className="px-3 py-2.5">Type</th>
+                    <th className="hidden px-3 py-2.5 xl:table-cell">Parent role</th>
+                    <th className="px-3 py-2.5 text-right">Users</th>
+                    <th className="hidden px-3 py-2.5 md:table-cell">Last changed</th>
+                    <th className="px-3 py-2.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {padTop > 0 && <tr style={{ height: padTop }} aria-hidden />}
+                  {items.map((vi) => {
+                    const r = rows[vi.index];
+                    const sel = selected.has(r.name);
+                    const open = () => navigate(`/roles/${encodeURIComponent(r.name)}`);
+                    return (
+                      <tr
+                        key={r.name}
+                        aria-rowindex={vi.index + 2}
+                        data-state={sel ? "selected" : undefined}
+                        tabIndex={0}
+                        style={{ height: ROW_H }}
+                        className={cn("cursor-pointer border-b hover:bg-muted/40 focus-visible:bg-accent/50 focus-visible:outline-none data-[state=selected]:bg-accent/50")}
+                        onClick={open}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") open();
+                          if (e.key === " ") {
+                            e.preventDefault();
+                            toggle(r.name);
+                          }
+                        }}
+                      >
+                        <td className="px-3" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={sel} onCheckedChange={() => toggle(r.name)} aria-label={`Select ${r.name}`} />
+                        </td>
+                        <td className="px-3 font-mono text-[13px] font-medium">{r.name}</td>
+                        <td className="max-w-[280px] truncate px-3 text-muted-foreground">{r.description}</td>
+                        <td className="px-3">{r.type}</td>
+                        <td className="hidden px-3 font-mono text-xs text-muted-foreground xl:table-cell">{r.parent ?? "—"}</td>
+                        <td className="tabular px-3 text-right">{data!.userCount[r.name]}</td>
+                        <td className="hidden px-3 text-muted-foreground md:table-cell">{fmtDate(r.lastChanged)}</td>
+                        <td className="px-3">
+                          <StatusBadge status={data!.statuses[r.name]} size="sm" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {padBottom > 0 && <tr style={{ height: padBottom }} aria-hidden />}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : userRows.length === 0 ? (
           <EmptyState
             className="m-4"
             icon={SearchX}
-            title="No roles match these filters."
+            title="No users match these filters."
             action={
               <Button onClick={clearFilters}>
                 <X /> Clear filters
@@ -212,72 +388,70 @@ export default function RolesPage() {
             }
           />
         ) : (
-          <div ref={parentRef} className="max-h-[calc(100vh-380px)] min-h-[320px] overflow-auto" role="region" aria-label="Role list" tabIndex={-1}>
-            <table className="w-full text-sm" aria-rowcount={rows.length + 1}>
+          <div className="max-h-[calc(100vh-380px)] min-h-[320px] overflow-auto" role="region" aria-label="User list" tabIndex={-1}>
+            <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
                 <tr className="border-b text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th className="w-10 px-3 py-2.5">
-                    <Checkbox
-                      aria-label="Select all visible roles"
-                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                      onCheckedChange={(c) => setSelected(c ? new Set(rows.map((r) => r.name)) : new Set())}
-                    />
-                  </th>
-                  <th className="px-3 py-2.5">Role name</th>
-                  <th className="px-3 py-2.5">Description</th>
-                  <th className="px-3 py-2.5">Type</th>
-                  <th className="hidden px-3 py-2.5 xl:table-cell">Parent role</th>
-                  <th className="px-3 py-2.5 text-right">Users</th>
-                  <th className="hidden px-3 py-2.5 md:table-cell">Last changed</th>
+                  <th className="px-3 py-2.5">User ID</th>
+                  <th className="px-3 py-2.5">Name</th>
+                  <th className="px-3 py-2.5">Department</th>
+                  <th className="px-3 py-2.5">Assigned roles</th>
+                  <th className="hidden px-3 py-2.5 md:table-cell">Valid to</th>
                   <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5">SoD Risk Result</th>
                 </tr>
               </thead>
               <tbody>
-                {padTop > 0 && <tr style={{ height: padTop }} aria-hidden />}
-                {items.map((vi) => {
-                  const r = rows[vi.index];
-                  const sel = selected.has(r.name);
-                  const open = () => navigate(`/roles/${encodeURIComponent(r.name)}`);
+                {userRows.map((u) => {
+                  const open = () => navigate(`/roles/analysis?kind=User&subject=${encodeURIComponent(u.id)}`);
                   return (
                     <tr
-                      key={r.name}
-                      aria-rowindex={vi.index + 2}
-                      data-state={sel ? "selected" : undefined}
+                      key={u.id}
                       tabIndex={0}
-                      style={{ height: ROW_H }}
-                      className={cn("cursor-pointer border-b hover:bg-muted/40 focus-visible:bg-accent/50 focus-visible:outline-none data-[state=selected]:bg-accent/50")}
+                      className="cursor-pointer border-b hover:bg-muted/40 focus-visible:bg-accent/50 focus-visible:outline-none"
                       onClick={open}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") open();
-                        if (e.key === " ") {
-                          e.preventDefault();
-                          toggle(r.name);
-                        }
-                      }}
+                      onKeyDown={(e) => e.key === "Enter" && open()}
                     >
-                      <td className="px-3" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={sel} onCheckedChange={() => toggle(r.name)} aria-label={`Select ${r.name}`} />
+                      <td className="px-3 py-3 font-mono text-xs font-semibold">{u.id}</td>
+                      <td className="px-3 py-3 font-medium">{u.name}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground">{u.department}</td>
+                      <td className="px-3 py-3 text-xs">
+                        <span className="mr-1.5 rounded bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                          {u.roles.length} role(s)
+                        </span>
+                        <span className="text-muted-foreground">
+                          {u.roles.slice(0, 2).join(", ")}{u.roles.length > 2 ? "…" : ""}
+                        </span>
                       </td>
-                      <td className="px-3 font-mono text-[13px] font-medium">{r.name}</td>
-                      <td className="max-w-[280px] truncate px-3 text-muted-foreground">{r.description}</td>
-                      <td className="px-3">{r.type}</td>
-                      <td className="hidden px-3 font-mono text-xs text-muted-foreground xl:table-cell">{r.parent ?? "—"}</td>
-                      <td className="tabular px-3 text-right">{data!.userCount[r.name]}</td>
-                      <td className="hidden px-3 text-muted-foreground md:table-cell">{fmtDate(r.lastChanged)}</td>
-                      <td className="px-3">
-                        <StatusBadge status={data!.statuses[r.name]} size="sm" />
+                      <td className="hidden px-3 py-3 text-xs text-muted-foreground md:table-cell">
+                        {fmtDate(u.validTo)}
+                        {u.locked && <span className="ml-1 rounded bg-status-red-bg px-1.5 py-0.5 text-[10px] font-semibold text-status-red">Locked</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <StatusBadge status={u.status} size="sm" />
+                      </td>
+                      <td className="px-3 py-3 text-xs">
+                        {u.hits.length === 0 ? (
+                          <span className="font-medium text-status-green flex items-center gap-1.5">
+                            ✓ Risk OK · Clean
+                          </span>
+                        ) : (
+                          <span className="font-medium text-status-red">
+                            {u.hits.length} risk hit(s)
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
-                {padBottom > 0 && <tr style={{ height: padBottom }} aria-hidden />}
               </tbody>
             </table>
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-xs text-muted-foreground">
           <span>
-            {rows.length} of {data?.roles.length ?? 0} roles{selected.size ? ` · ${selected.size} selected` : ""} · Space selects, Enter opens
+            {view === "roles" ? `${rows.length} of ${data?.roles.length ?? 0} roles` : `${userRows.length} of ${data?.users.length ?? 0} users`}
+            {view === "roles" && selected.size ? ` · ${selected.size} selected` : ""} · Click row to drill down
           </span>
           <StatusLegend />
         </div>
