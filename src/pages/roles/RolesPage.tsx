@@ -108,7 +108,7 @@ export default function RolesPage() {
   const refresh = () =>
     startJob(`Delta sync ${system.sid}`, async (p) => {
       const n = await syncNow(systemId, p);
-      return { message: `${n.toLocaleString()} records updated`, link: "/connections" };
+      return { message: `${n.toLocaleString()} records updated`, link: "/settings?tab=connections" };
     });
 
   const exportExcel = () => {

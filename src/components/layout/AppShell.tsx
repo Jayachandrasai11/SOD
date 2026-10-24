@@ -2,13 +2,11 @@ import * as React from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
-  BookOpen,
   Hammer,
   Home,
   Loader2,
   Menu,
   Moon,
-  Plug,
   ScrollText,
   Search,
   Server,
@@ -36,8 +34,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const NAV = [
   { to: "/", label: "Home", icon: Home, end: true },
-  { to: "/rules", label: "Rules", icon: BookOpen },
-  { to: "/connections", label: "Connections", icon: Plug },
   { to: "/roles", label: "Roles & Analysis", icon: ShieldCheck },
   { to: "/builder", label: "Role Builder", icon: Hammer },
   { to: "/audit", label: "Audit Log", icon: ScrollText },
@@ -105,7 +101,7 @@ function GlobalSearch() {
   const results = s
     ? [
         ...db.roles.filter((r) => r.name.toLowerCase().includes(s) || r.description.toLowerCase().includes(s)).slice(0, 5).map((r) => ({ kind: "Role", label: r.name, sub: r.description, to: `/roles/${encodeURIComponent(r.name)}` })),
-        ...db.risks.filter((r) => r.id.toLowerCase().includes(s) || r.description.toLowerCase().includes(s)).slice(0, 4).map((r) => ({ kind: "Risk", label: r.description, sub: r.id, to: `/rules?risk=${r.id}` })),
+        ...db.risks.filter((r) => r.id.toLowerCase().includes(s) || r.description.toLowerCase().includes(s)).slice(0, 4).map((r) => ({ kind: "Risk", label: r.description, sub: r.id, to: `/settings?tab=rules&risk=${r.id}` })),
         ...db.users.filter((u) => u.name.toLowerCase().includes(s) || u.id.toLowerCase().includes(s)).slice(0, 4).map((u) => ({ kind: "User", label: u.name, sub: `${u.id} · ${u.department}`, to: `/roles/analysis?kind=User&subject=${u.id}` })),
       ]
     : [];

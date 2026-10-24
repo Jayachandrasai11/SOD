@@ -74,25 +74,34 @@ function VersionBanner({ onCompare }: { onCompare: () => void }) {
   );
 }
 
-export default function RulesPage() {
+export default function RulesPage({ embedded = false }: { embedded?: boolean }) {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") ?? "library";
+  const tab = params.get("rulesTab") ?? (params.get("tab") && ["library", "import", "versions"].includes(params.get("tab")!) ? params.get("tab")! : "library");
   const setTab = (t: string) => {
     const p = new URLSearchParams(params);
-    p.set("tab", t);
+    p.set("rulesTab", t);
     p.delete("risk");
     setParams(p, { replace: true });
   };
 
   return (
     <>
-      <PageHeader
-        crumbs={[{ label: "Home", to: "/" }, { label: "Rules" }]}
-        title="Rules"
-        description="Your SoD ruleset: risks, the functions that conflict, and the SAP actions and permissions behind each function. Changes are made in a draft version and go live once published."
-      />
+      {!embedded && (
+        <PageHeader
+          crumbs={[{ label: "Home", to: "/" }, { label: "Rules" }]}
+          title="Rules"
+          description="Your SoD ruleset: risks, the functions that conflict, and the SAP actions and permissions behind each function. Changes are made in a draft version and go live once published."
+        />
+      )}
       <div className="mb-5">
-        <VersionBanner onCompare={() => setParams({ tab: "versions", compare: "published" })} />
+        <VersionBanner
+          onCompare={() => {
+            const p = new URLSearchParams(params);
+            p.set("rulesTab", "versions");
+            p.set("compare", "published");
+            setParams(p);
+          }}
+        />
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

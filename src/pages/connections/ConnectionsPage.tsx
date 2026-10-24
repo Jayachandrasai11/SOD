@@ -34,7 +34,7 @@ export function ConnectionBadge({ status }: { status: ConnectionStatus }) {
 
 const RESULT_STATUS: Record<SyncRun["result"], ConnectionStatus> = { Success: "Connected", Warning: "Warning", Failed: "Failed" };
 
-export default function ConnectionsPage() {
+export default function ConnectionsPage({ embedded = false }: { embedded?: boolean }) {
   const [params, setParams] = useSearchParams();
   const { can, startJob } = useApp();
   const { data: systems, loading } = useService(getSystems);
@@ -43,6 +43,18 @@ export default function ConnectionsPage() {
   const [steps, setSteps] = React.useState<TestStep[]>([]);
   const [editing, setEditing] = React.useState<SapSystem>();
   const addOpen = params.get("add") === "1";
+
+  const openAdd = () => {
+    const p = new URLSearchParams(params);
+    p.set("add", "1");
+    setParams(p, { replace: true });
+  };
+
+  const closeAdd = () => {
+    const p = new URLSearchParams(params);
+    p.delete("add");
+    setParams(p, { replace: true });
+  };
 
   const test = async (s: SapSystem) => {
     setTesting(s);
@@ -55,26 +67,43 @@ export default function ConnectionsPage() {
   const sync = (s: SapSystem) =>
     startJob(`Delta sync ${s.sid}`, async (p) => {
       const n = await syncNow(s.id, p);
-      return { message: `${fmtNumber(n)} records updated`, link: "/connections" };
+      return { message: `${fmtNumber(n)} records updated`, link: "/settings?tab=connections" };
     });
 
   return (
     <>
-      <PageHeader
-        crumbs={[{ label: "Home", to: "/" }, { label: "Connections" }]}
-        title="Connections"
-        description="S/4HANA systems MySODAI reads roles, users and authorisations from."
-        actions={
-          <>
+      {!embedded ? (
+        <PageHeader
+          crumbs={[{ label: "Home", to: "/" }, { label: "Connections" }]}
+          title="Connections"
+          description="S/4HANA systems MySODAI reads roles, users and authorisations from."
+          actions={
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
+                <Lock className="h-3.5 w-3.5" aria-hidden /> Read-only · MySODAI never writes to SAP
+              </span>
+              <Button onClick={openAdd} disabled={!can("admin")}>
+                <Plus /> Add system
+              </Button>
+            </>
+          }
+        />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-semibold">SAP Systems & Connections</h3>
+            <p className="text-xs text-muted-foreground">S/4HANA systems MySODAI reads roles, users and authorisations from.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
               <Lock className="h-3.5 w-3.5" aria-hidden /> Read-only · MySODAI never writes to SAP
             </span>
-            <Button onClick={() => setParams({ add: "1" })} disabled={!can("admin")}>
+            <Button size="sm" onClick={openAdd} disabled={!can("admin")}>
               <Plus /> Add system
             </Button>
-          </>
-        }
-      />
+          </div>
+        </div>
+      )}
 
       {loading || !systems ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -82,7 +111,7 @@ export default function ConnectionsPage() {
           <Skeleton className="h-72 rounded-xl" />
         </div>
       ) : systems.length === 0 ? (
-        <EmptyState icon={Server} title="No SAP system is connected yet. Add one to start analysing roles." action={<Button onClick={() => setParams({ add: "1" })}><Plus /> Add system</Button>} />
+        <EmptyState icon={Server} title="No SAP system is connected yet. Add one to start analysing roles." action={<Button onClick={openAdd}><Plus /> Add system</Button>} />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {systems.map((s) => (
@@ -214,7 +243,7 @@ export default function ConnectionsPage() {
       </Dialog>
 
       <EditSystemDialog system={editing} onClose={() => setEditing(undefined)} />
-      <AddSystemWizard open={addOpen} onOpenChange={(o) => !o && setParams({})} />
+      <AddSystemWizard open={addOpen} onOpenChange={(o) => !o && closeAdd()} />
     </>
   );
 }

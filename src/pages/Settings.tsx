@@ -1,6 +1,7 @@
 import * as React from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { KeyRound, Palette, Save, Tag, Users } from "lucide-react";
+import { BookOpen, KeyRound, Palette, Plug, Save, Tag, Users } from "lucide-react";
 import { PageHeader, Field, LevelChip, HelpTip } from "@/components/common";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import { useService } from "@/services/db";
 import { getAppUsers, getSettings, namingCheck, saveSettings, setAppUserRole } from "@/services/settingsService";
 import { useApp } from "@/context/AppContext";
 import { RISK_LEVELS, type AppRole, type Settings } from "@/types";
+import RulesPage from "@/pages/rules/RulesPage";
+import ConnectionsPage from "@/pages/connections/ConnectionsPage";
 
 const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   Administrator: "Everything, including connections, publishing rulesets and user management",
@@ -25,11 +28,19 @@ const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
 export default function SettingsPage() {
   const { can } = useApp();
   const admin = can("admin");
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") ?? "traffic";
   const { data: saved, loading } = useService(getSettings);
   const { data: appUsers } = useService(getAppUsers);
   const [s, setS] = React.useState<Settings>();
   const [reason, setReason] = React.useState("");
   const [testName, setTestName] = React.useState("Z_FI_AP_INVOICE");
+
+  const handleTabChange = (nextTab: string) => {
+    const p = new URLSearchParams(params);
+    p.set("tab", nextTab);
+    setParams(p, { replace: true });
+  };
 
   React.useEffect(() => {
     if (saved && !s) setS(saved);
@@ -43,7 +54,7 @@ export default function SettingsPage() {
       <PageHeader
         crumbs={[{ label: "Home", to: "/" }, { label: "Settings" }]}
         title="Settings"
-        description={admin ? "Changes are recorded in the audit log." : "Only administrators can change settings. You are viewing them read-only."}
+        description={admin ? "Manage rules, SAP connections, thresholds, naming conventions and users." : "You are viewing settings in read-only mode."}
         actions={
           <Button
             disabled={!dirty || !admin}
@@ -57,13 +68,19 @@ export default function SettingsPage() {
           </Button>
         }
       />
-      <Tabs defaultValue="traffic">
+      <Tabs value={tab} onValueChange={handleTabChange}>
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="traffic">
             <Palette /> Traffic light
           </TabsTrigger>
           <TabsTrigger value="naming">
             <Tag /> Naming conventions
+          </TabsTrigger>
+          <TabsTrigger value="rules">
+            <BookOpen /> Rules
+          </TabsTrigger>
+          <TabsTrigger value="connections">
+            <Plug /> Connections
           </TabsTrigger>
           <TabsTrigger value="users">
             <Users /> App users
@@ -73,8 +90,8 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <fieldset disabled={!admin}>
-          <TabsContent value="traffic" className="space-y-4">
+        <TabsContent value="traffic" className="space-y-4">
+          <fieldset disabled={!admin} className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Risk level → status</CardTitle>
@@ -143,9 +160,11 @@ export default function SettingsPage() {
                 </Field>
               </CardContent>
             </Card>
-          </TabsContent>
+          </fieldset>
+        </TabsContent>
 
-          <TabsContent value="naming">
+        <TabsContent value="naming" className="space-y-4">
+          <fieldset disabled={!admin} className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Role naming</CardTitle>
@@ -172,7 +191,16 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </fieldset>
+        </TabsContent>
+
+        <TabsContent value="rules" className="space-y-4">
+          <RulesPage embedded />
+        </TabsContent>
+
+        <TabsContent value="connections" className="space-y-4">
+          <ConnectionsPage embedded />
+        </TabsContent>
 
           <TabsContent value="users">
             <Card>
@@ -251,8 +279,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </TabsContent>
-        </fieldset>
-      </Tabs>
+        </Tabs>
     </>
   );
 }

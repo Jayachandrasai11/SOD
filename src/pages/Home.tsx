@@ -24,8 +24,8 @@ export default function HomePage() {
   const system = db.systems.find((s) => s.id === systemId)!;
 
   const steps = [
-    { key: "rules", done: ob.rulesImported, title: "Import rules", body: "Load your SoD ruleset from Excel or start with the MyGo starter library.", cta: "Import rules", icon: BookOpen, to: "/rules?tab=import" },
-    { key: "connect", done: ob.systemConnected, title: "Connect S/4HANA", body: "Add a read-only connection so MySODAI can read roles, users and authorisations.", cta: "Add system", icon: Plug, to: "/connections?add=1" },
+    { key: "rules", done: ob.rulesImported, title: "Import rules", body: "Load your SoD ruleset from Excel or start with the MyGo starter library.", cta: "Import rules", icon: BookOpen, to: "/settings?tab=rules&rulesTab=import" },
+    { key: "connect", done: ob.systemConnected, title: "Connect S/4HANA", body: "Add a read-only connection so MySODAI can read roles, users and authorisations.", cta: "Add system", icon: Plug, to: "/settings?tab=connections&add=1" },
     { key: "analyse", done: ob.analysisRun, title: "Run first analysis", body: "Check every role against the ruleset and see what needs action.", cta: "Run analysis", icon: Play },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -126,7 +126,7 @@ export default function HomePage() {
                   {system.status === "Warning" && <StatusBadge status="amber" size="sm" suffix="– stale" />}
                 </span>
               }
-              to="/connections"
+              to="/settings?tab=connections"
             />
           </>
         )}

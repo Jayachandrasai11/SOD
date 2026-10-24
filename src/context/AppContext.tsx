@@ -38,8 +38,8 @@ interface Ctx {
 const AppContext = React.createContext<Ctx | null>(null);
 
 const initialNotifications: Notification[] = [
-  { id: "n1", title: "Delta sync failed on S4P", body: "Two scheduled runs timed out. Data is 2 days old.", time: "2026-10-23T02:30:00Z", read: false, link: "/connections" },
-  { id: "n2", title: "Ruleset v1.4 awaiting submission", body: "6 unsaved changes in draft.", time: "2026-10-22T15:12:00Z", read: false, link: "/rules" },
+  { id: "n1", title: "Delta sync failed on S4P", body: "Two scheduled runs timed out. Data is 2 days old.", time: "2026-10-23T02:30:00Z", read: false, link: "/settings?tab=connections" },
+  { id: "n2", title: "Ruleset v1.4 awaiting submission", body: "6 unsaved changes in draft.", time: "2026-10-22T15:12:00Z", read: false, link: "/settings?tab=rules" },
   { id: "n3", title: "Nightly analysis finished", body: "RUN-20261022-0200 · 14 roles need action.", time: "2026-10-22T02:40:00Z", read: true, link: "/roles/analysis" },
 ];
 
