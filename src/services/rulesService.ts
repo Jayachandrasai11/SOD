@@ -247,7 +247,7 @@ export function validateImport(file: ParsedFile, map: ColumnMapping): ImportPrev
     if (!RISK_TYPES.includes(type as RiskType)) return fail(`risk type "${type}" is not valid.`);
     if (!fnId) return fail(`risk ${riskId} has no function ID.`);
     if (!action) return fail(`function ${fnId} has no actions.`);
-    if (!TCODE_MAP[action]) warnings.push({ row, message: `Row ${row}: transaction ${action} is not in the S4P catalogue – it will be imported but never fire until it exists.` });
+    if (!TCODE_MAP[action]) warnings.push({ row, message: `Row ${row}: transaction ${action} is not in the SAP catalogue – it will be imported but never fire until it exists.` });
 
     const risk = risks.get(riskId) ?? {
       id: riskId,

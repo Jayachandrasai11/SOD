@@ -61,6 +61,29 @@ export type ConnectionMethod = "OData API" | "RFC agent" | "File upload";
 export type ConnectionStatus = "Connected" | "Warning" | "Failed";
 export type AuthType = "Basic" | "OAuth 2.0 client credentials" | "X.509";
 
+export interface SapSystemApiConfig {
+  serviceRoot: string;
+  destination?: string;
+  tokenUrl?: string;
+  clientId?: string;
+  technicalUser?: string;
+  hasSecret?: boolean;
+  scopes: {
+    roleData: boolean;
+    userAssignments: boolean;
+    writeActions: boolean;
+  };
+  endpoints: {
+    roleHeaders: string;
+    roleAuthorizations: string;
+    roleOrgData: string;
+    roleTCodes: string;
+    userAssignments: string;
+    userMasterUrl?: string;
+  };
+  pageSize?: number;
+}
+
 export interface SapSystem {
   id: string;
   name: string;
@@ -71,6 +94,7 @@ export interface SapSystem {
   method: ConnectionMethod;
   authType: AuthType;
   host: string;
+  apiConfig?: SapSystemApiConfig;
   status: ConnectionStatus;
   statusMessage?: string;
   lastFullSync: string;
@@ -82,6 +106,7 @@ export interface SapSystem {
 export interface SyncRun {
   id: string;
   systemId: string;
+  systemName?: string;
   type: "Full" | "Delta";
   started: string;
   durationSec: number;
@@ -98,6 +123,14 @@ export interface RoleAuth {
   low: string;
   high?: string;
   proposed?: boolean;
+  // SAP PFCG Fields from ZROLE_AUTHORIZATIONS / AGR_1251
+  counter?: string;
+  auth?: string;
+  modified?: string; // "S" (Standard) | "M" (Modified) | "U" (Unmaintained)
+  deleted?: boolean;
+  copied?: boolean;
+  neu?: string;
+  node?: string;
 }
 
 export interface OrgLevel {
@@ -106,6 +139,14 @@ export interface OrgLevel {
   low: string;
   high?: string;
   required?: boolean;
+  // SAP PFCG Fields from ZROLE_ORG_DATA / AGR_1252
+  counter?: string;
+  varbl?: string;
+}
+
+export interface RoleTCodeDetail {
+  tcode: string;
+  source: "Menu" | "Authorization" | "Child Role";
 }
 
 export interface Role {
@@ -117,10 +158,22 @@ export interface Role {
   process: Process;
   owner: string;
   tcodes: string[];
+  tcodeDetails?: RoleTCodeDetail[];
   auths: RoleAuth[];
   orgLevels: OrgLevel[];
   lastChanged: string;
   lastAnalysed?: string;
+  // SAP Role Header Audit & Complexity Metrics
+  createDat?: string;
+  createTim?: string;
+  createUsr?: string;
+  changeDat?: string;
+  changeTim?: string;
+  changeUsr?: string;
+  flagType?: string;
+  authCount?: number;
+  orgCount?: number;
+  tcodeCount?: number;
 }
 
 export interface User {
@@ -128,6 +181,7 @@ export interface User {
   name: string;
   department: string;
   roles: string[];
+  createdRoles?: string[];
   validTo: string;
   locked?: boolean;
 }
@@ -184,7 +238,7 @@ export interface AnalysisRun {
   results: SubjectResult[];
 }
 
-export type AuditArea = "Rules" | "Connection" | "Analysis" | "Role export" | "Settings";
+export type AuditArea = "Rules" | "Connection" | "Analysis" | "Role export" | "Role admin" | "Settings";
 
 export interface AuditEntry {
   id: string;
@@ -207,6 +261,16 @@ export interface AppUser {
   role: AppRole;
 }
 
+export interface SapBtpConfig {
+  baseUrl: string;
+  authTokenUrl: string;
+  clientId: string;
+  clientSecret: string;
+  lastTested?: string;
+  lastTestStatus?: "Success" | "Failed";
+  lastTestMessage?: string;
+}
+
 export interface Settings {
   levelToStatus: Record<RiskLevel, Exclude<Status, "grey">>;
   mitigatedStatus: "amber" | "green";
@@ -214,6 +278,7 @@ export interface Settings {
   namingPrefixes: string[];
   namingPattern: string;
   maxRoleNameLength: number;
+  sapBtpConfig?: SapBtpConfig;
 }
 
 export interface Tcode {

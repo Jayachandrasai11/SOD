@@ -7,6 +7,8 @@ import AnalysisPage from "./pages/roles/AnalysisPage";
 import RoleBuilderPage from "./pages/builder/RoleBuilderPage";
 import AuditLogPage from "./pages/AuditLog";
 import SettingsPage from "./pages/Settings";
+import FioriCatalogPage from "./pages/fiori/FioriCatalogPage";
+import FioriAppDetailPage from "./pages/fiori/FioriAppDetailPage";
 import { EmptyState } from "./components/common";
 import { Compass } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -30,6 +32,8 @@ export default function App() {
         <Route path="roles/analysis" element={<AnalysisPage />} />
         <Route path="roles/:name" element={<RoleDetailPage />} />
         <Route path="builder" element={<RoleBuilderPage />} />
+        <Route path="fiori" element={<FioriCatalogPage />} />
+        <Route path="fiori/detail" element={<FioriAppDetailPage />} />
         <Route path="audit" element={<AuditLogPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route

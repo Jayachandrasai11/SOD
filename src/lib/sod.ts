@@ -33,25 +33,27 @@ export function worstStatus(statuses: Status[], empty: Status = "green"): Status
 export function grantsForRole(role: Role, roleMap: Map<string, Role>, seen = new Set<string>()): Grant[] {
   if (seen.has(role.name)) return [];
   seen.add(role.name);
-  if (role.type === "Composite") {
-    return (role.children ?? []).flatMap((c) => {
+  if (role.type === "Composite" && role.children && role.children.length > 0) {
+    const childGrants = (role.children ?? []).flatMap((c) => {
       const child = roleMap.get(c);
       return child ? grantsForRole(child, roleMap, seen) : [];
     });
+    if (childGrants.length > 0) return childGrants;
   }
-  return role.tcodes.map((tcode) => ({ tcode, grantedBy: role.name }));
+  return (role.tcodes ?? []).map((tcode) => ({ tcode, grantedBy: role.name }));
 }
 
 export function authsForRole(role: Role, roleMap: Map<string, Role>, seen = new Set<string>()): (RoleAuth & { role: string })[] {
   if (seen.has(role.name)) return [];
   seen.add(role.name);
-  if (role.type === "Composite") {
-    return (role.children ?? []).flatMap((c) => {
+  if (role.type === "Composite" && role.children && role.children.length > 0) {
+    const childAuths = (role.children ?? []).flatMap((c) => {
       const child = roleMap.get(c);
       return child ? authsForRole(child, roleMap, seen) : [];
     });
+    if (childAuths.length > 0) return childAuths;
   }
-  return role.auths.map((a) => ({ ...a, role: role.name }));
+  return (role.auths ?? []).map((a) => ({ ...a, role: role.name }));
 }
 
 export interface EvalContext {

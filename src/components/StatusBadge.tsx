@@ -47,7 +47,7 @@ interface Props {
  * conveyed by icon shape + text, never colour alone (WCAG 1.4.1).
  */
 export function StatusBadge({ status, size = "md", iconOnly, className, suffix }: Props) {
-  const m = STATUS_META[status];
+  const m = STATUS_META[status] ?? STATUS_META.grey;
   const Icon = m.icon;
   return (
     <span

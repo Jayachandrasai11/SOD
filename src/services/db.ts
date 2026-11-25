@@ -20,6 +20,12 @@ export const DEFAULT_SETTINGS: Settings = {
   namingPrefixes: ["Z_", "Y_"],
   namingPattern: "Z_<PROCESS>_<FUNCTION>",
   maxRoleNameLength: 30,
+  sapBtpConfig: {
+    baseUrl: "https://mygo-consulting-inc-mygo-bas-4e8bz4sk-mygo-bas-zrole-he2315c850.cfapps.us10-001.hana.ondemand.com/role-service",
+    authTokenUrl: "https://mygo-bas-4e8bz4sk.authentication.us10.hana.ondemand.com/oauth/token",
+    clientId: "",
+    clientSecret: "",
+  },
 };
 
 export interface Onboarding {

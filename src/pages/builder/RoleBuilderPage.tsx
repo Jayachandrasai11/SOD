@@ -1,10 +1,12 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Check, CheckCircle2, Copy, FilePlus2, Lightbulb, Pencil, Plus, Save, ShieldCheck, Trash2, Upload, X, XCircle } from "lucide-react";
+import { Check, CheckCircle2, Copy, FilePlus2, Lightbulb, Pencil, Plus, Save, Send, ShieldCheck, Trash2, Upload, X, XCircle } from "lucide-react";
 import { PageHeader, EmptyState, Field, HelpTip, LevelChip } from "@/components/common";
+import { CreateSapRoleDialog } from "@/components/SapRoleAdminDialogs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TcodeTypeahead } from "@/components/TcodeTypeahead";
+import { RoleTypeahead } from "@/components/RoleTypeahead";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,13 +27,15 @@ import { TemplateSection } from "./TemplateSection";
 export default function RoleBuilderPage() {
   useDbVersion();
   const [params, setParams] = useSearchParams();
-  const { can } = useApp();
+  const { can, systemId } = useApp();
+  const activeSystem = db.systems.find((s) => s.id === systemId) || db.systems[0];
   const readOnly = !can("edit");
   const [draft, setDraft] = React.useState<Role>(emptyDraft);
   const [isUpdate, setIsUpdate] = React.useState(false);
   const [suggestRemove, setSuggestRemove] = React.useState<string>();
   const [tab, setTab] = React.useState("tcodes");
   const [exportOpen, setExportOpen] = React.useState(false);
+  const [createInSapOpen, setCreateInSapOpen] = React.useState(false);
   const [validateOpen, setValidateOpen] = React.useState(false);
   const [editingAuth, setEditingAuth] = React.useState<number>();
   const [flash, setFlash] = React.useState(false);
@@ -110,7 +114,12 @@ export default function RoleBuilderPage() {
 
   const pendingProposals = draft.auths.filter((a) => a.proposed).length;
   const missingOrg = draft.orgLevels.filter((o) => o.required && !o.low.trim()).length;
-  const availableChildren = db.roles.filter((r) => r.type !== "Composite" && !(draft.children ?? []).includes(r.name));
+
+  const handleOpenTemplateDraft = React.useCallback((r: Role) => {
+    setDraft(r);
+    setIsUpdate(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   return (
     <>
@@ -201,19 +210,12 @@ export default function RoleBuilderPage() {
             </fieldset>
             <div className="border-t pt-4">
               <Field label="Start from existing role" htmlFor="rb-from" hint="Copies its content into this draft">
-                <Select value="" onValueChange={startFrom} disabled={readOnly}>
-                  <SelectTrigger id="rb-from">
-                    <Copy className="h-4 w-4 text-muted-foreground" aria-hidden />
-                    <SelectValue placeholder="Pick a role to copy…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {db.roles.map((r) => (
-                      <SelectItem key={r.name} value={r.name}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <RoleTypeahead
+                  id="rb-from"
+                  icon="copy"
+                  placeholder="Search role to copy…"
+                  onSelect={(r) => startFrom(r.name)}
+                />
               </Field>
             </div>
           </CardContent>
@@ -356,19 +358,13 @@ export default function RoleBuilderPage() {
               {draft.type === "Composite" && (
                 <TabsContent value="children" className="mt-0 space-y-3">
                   {!readOnly && (
-                    <Select value="" onValueChange={(v) => update({ children: [...(draft.children ?? []), v] })}>
-                      <SelectTrigger aria-label="Add child role">
-                        <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
-                        <SelectValue placeholder="Add a single role…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableChildren.map((r) => (
-                          <SelectItem key={r.name} value={r.name}>
-                            {r.name} – {r.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <RoleTypeahead
+                      icon="plus"
+                      placeholder="Add a single role by name or description…"
+                      filterType="Single"
+                      exclude={draft.children ?? []}
+                      onSelect={(r) => update({ children: [...(draft.children ?? []), r.name] })}
+                    />
                   )}
                   {(draft.children ?? []).length === 0 ? (
                     <EmptyState icon={Plus} title="Add the single roles this composite should bundle." />
@@ -487,17 +483,18 @@ export default function RoleBuilderPage() {
           >
             <Save /> Save draft
           </Button>
+          {activeSystem?.apiConfig?.scopes?.writeActions && (
+            <Button variant="outline" onClick={() => setCreateInSapOpen(true)} disabled={readOnly || !draft.name.trim() || !draft.description.trim()}>
+              <Send /> Create in SAP
+            </Button>
+          )}
           <Button onClick={() => setExportOpen(true)} disabled={readOnly}>
             <Upload /> Export role file
           </Button>
         </div>
       </div>
 
-      <TemplateSection onOpenDraft={(r) => {
-        setDraft(r);
-        setIsUpdate(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }} />
+      <TemplateSection onOpenDraft={handleOpenTemplateDraft} />
 
       <Dialog open={validateOpen} onOpenChange={setValidateOpen}>
         <DialogContent>
@@ -517,6 +514,18 @@ export default function RoleBuilderPage() {
       </Dialog>
 
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} draft={draft} result={result} checks={checks} />
+      <CreateSapRoleDialog
+        open={createInSapOpen}
+        onOpenChange={setCreateInSapOpen}
+        systemId={activeSystem?.id || "HMF-100"}
+        initialRole={draft.name}
+        initialDesc={draft.description}
+        onSuccess={(newRole) => {
+          toast.success(`Role ${newRole} created in SAP & Catalog!`, {
+            description: "Role is now persisted in PostgreSQL and available for analysis and user assignment.",
+          });
+        }}
+      />
     </>
   );
 }

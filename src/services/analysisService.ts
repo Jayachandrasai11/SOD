@@ -9,9 +9,20 @@ import { authsForRole, bestRemediation, evaluate, evaluateRole, grantsForRole, i
 import { LAST_RUN_ID, SNAPSHOT_DATE } from "@/data/roles";
 import { currentDraftVersion, publishedVersion } from "./rulesService";
 import { MOCK_NOW } from "@/lib/utils";
+import { ensureLiveMasterData } from "./sapService";
 
 const ctx = (): EvalContext => ({ risks: db.risks, functions: db.functions, mitigations: db.mitigations, settings: db.settings });
-const roleMap = () => new Map(db.roles.map((r) => [r.name, r]));
+
+let cachedRoleMap: Map<string, Role> | null = null;
+let lastRolesArrayRef: Role[] | null = null;
+
+export function roleMap(): Map<string, Role> {
+  if (!cachedRoleMap || lastRolesArrayRef !== db.roles) {
+    cachedRoleMap = new Map(db.roles.map((r) => [r.name, r]));
+    lastRolesArrayRef = db.roles;
+  }
+  return cachedRoleMap;
+}
 
 /** Children of composites / parents of derived that are stale make the result partial */
 function rolePartial(role: Role, map: Map<string, Role>): boolean {
@@ -42,8 +53,28 @@ export function userResult(user: User): SubjectResult {
   return res;
 }
 
+let cachedRoleStatuses: Record<string, Status> | null = null;
+let lastRolesForStatuses: Role[] | null = null;
+
 export function roleStatuses(): Record<string, Status> {
-  return Object.fromEntries(db.roles.map((r) => [r.name, roleResult(r).status]));
+  if (cachedRoleStatuses && lastRolesForStatuses === db.roles) {
+    return cachedRoleStatuses;
+  }
+  const map = roleMap();
+  const c = ctx();
+  const out: Record<string, Status> = {};
+  for (const r of db.roles) {
+    if (isStale(r.lastAnalysed, db.settings)) {
+      out[r.name] = "grey";
+      continue;
+    }
+    const res = evaluateRole(r, map, c);
+    if (rolePartial(r, map)) res.status = worstStatus([res.status, "amber"]);
+    out[r.name] = res.status;
+  }
+  cachedRoleStatuses = out;
+  lastRolesForStatuses = db.roles;
+  return out;
 }
 
 export function remediationFor(result: SubjectResult): Remediation | undefined {
@@ -60,30 +91,41 @@ export function remediationFor(result: SubjectResult): Remediation | undefined {
 }
 
 function baselineRun(): AnalysisRun {
+  const sys = db.systems[0];
+  const snap = sys?.lastDeltaSync || SNAPSHOT_DATE;
   return {
     runId: LAST_RUN_ID,
-    startedAt: SNAPSHOT_DATE,
+    startedAt: snap,
     rulesetVersion: publishedVersion(),
-    snapshot: SNAPSHOT_DATE,
-    systemId: "S4P-100",
-    scope: "Nightly scheduled analysis · all roles and users",
+    snapshot: snap,
+    systemId: sys?.id || "HMF-100",
+    scope: `Latest snapshot analysis · ${db.roles.length.toLocaleString()} roles, ${db.users.length.toLocaleString()} users`,
     results: [...db.roles.map(roleResult), ...db.users.map(userResult)],
   };
 }
 
 export async function getLatestRun(): Promise<AnalysisRun> {
-  await latency(300);
+  try {
+    await ensureLiveMasterData();
+  } catch {}
+  await latency(100);
   return db.runs[0] ?? baselineRun();
 }
 
 export async function getRun(runId?: string | null): Promise<AnalysisRun> {
-  await latency(300);
+  try {
+    await ensureLiveMasterData();
+  } catch {}
+  await latency(100);
   if (!runId) return db.runs[0] ?? baselineRun();
   return db.runs.find((r) => r.runId === runId) ?? baselineRun();
 }
 
 export async function getRuns(): Promise<AnalysisRun[]> {
-  await latency(100);
+  try {
+    await ensureLiveMasterData();
+  } catch {}
+  await latency(50);
   return db.runs.length ? db.runs : [baselineRun()];
 }
 
@@ -108,12 +150,13 @@ export async function runAnalysis(scope: { roles?: string[]; allUsers?: boolean 
     results = db.roles.filter((r) => names.has(r.name)).map(roleResult);
   }
   const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+  const sys = db.systems[0];
   const run: AnalysisRun = {
     runId: `RUN-${stamp.slice(0, 8)}-${stamp.slice(8, 12)}-${String(runSeq++).padStart(2, "0")}`,
     startedAt: new Date().toISOString(),
     rulesetVersion: `${currentDraftVersion()} (draft)`,
-    snapshot: SNAPSHOT_DATE,
-    systemId: "S4P-100",
+    snapshot: sys?.lastDeltaSync || SNAPSHOT_DATE,
+    systemId: sys?.id || "HMF-100",
     scope: scope.allUsers ? `All users (${db.users.length})` : `${scope.roles!.length} selected role(s)`,
     results,
   };
@@ -136,7 +179,10 @@ export interface Summary {
 }
 
 export async function getSummary(): Promise<Summary> {
-  await latency(400);
+  try {
+    await ensureLiveMasterData();
+  } catch {}
+  await latency(100);
   const results = db.roles.map((r) => ({ role: r, result: roleResult(r) }));
   const counts: Record<Status, number> = { red: 0, amber: 0, green: 0, grey: 0 };
   results.forEach((x) => counts[x.result.status]++);

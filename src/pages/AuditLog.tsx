@@ -12,7 +12,7 @@ import { exportAuditCsv, getAuditLog } from "@/services/auditService";
 import type { AuditArea } from "@/types";
 import { fmtDateTime } from "@/lib/utils";
 
-const AREAS: AuditArea[] = ["Rules", "Connection", "Analysis", "Role export", "Settings"];
+const AREAS: AuditArea[] = ["Rules", "Connection", "Analysis", "Role export", "Role admin", "Settings"];
 
 export default function AuditLogPage() {
   const { data, loading } = useService(getAuditLog);

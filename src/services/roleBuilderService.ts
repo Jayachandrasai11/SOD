@@ -30,11 +30,22 @@ export function emptyDraft(): Role {
   };
 }
 
+let cachedBaseRoleMap: Map<string, Role> | null = null;
+let lastRolesArrayRef: Role[] | null = null;
+
+export function getBaseRoleMap(): Map<string, Role> {
+  if (!cachedBaseRoleMap || lastRolesArrayRef !== db.roles) {
+    cachedBaseRoleMap = new Map(db.roles.map((x) => [x.name, x]));
+    lastRolesArrayRef = db.roles;
+  }
+  return cachedBaseRoleMap;
+}
+
 /** Copy an existing role into a new draft ("Start from existing role") */
 export function draftFromRole(name: string, keepName = false): Role | undefined {
   const r = db.roles.find((x) => x.name === name) ?? db.builderDrafts.find((x) => x.name === name);
   if (!r) return undefined;
-  const map = new Map(db.roles.map((x) => [x.name, x]));
+  const map = getBaseRoleMap();
   const tcodes = r.type === "Derived" && r.parent ? map.get(r.parent)?.tcodes ?? r.tcodes : r.tcodes;
   return {
     ...JSON.parse(JSON.stringify(r)),
@@ -48,7 +59,7 @@ export function draftFromRole(name: string, keepName = false): Role | undefined 
 
 /** Live SoD check for a draft – instant, synchronous */
 export function liveCheck(draft: Role): { result: SubjectResult; remediation?: Remediation } {
-  const map = new Map(db.roles.map((r) => [r.name, r]));
+  const map = new Map(getBaseRoleMap());
   map.set(draft.name, draft);
   const grants = grantsForRole(draft, map);
   const auths = authsForRole(draft, map);
@@ -106,7 +117,7 @@ export function validateDraft(draft: Role, opts: { isUpdate?: boolean } = {}): C
       ok: pending === 0,
       detail: pending ? `${pending} proposed value(s) not yet accepted` : undefined,
     },
-    { key: "dup", label: "No duplicate in target system", ok: !dup, detail: dup ? `${draft.name} already exists in S4P – choose a new name.` : opts.isUpdate ? "Updates the existing role as a new version" : undefined },
+    { key: "dup", label: "No duplicate in target system", ok: !dup, detail: dup ? `${draft.name} already exists in HMF 2023 – choose a new name.` : opts.isUpdate ? "Updates the existing role as a new version" : undefined },
   ];
 }
 
@@ -377,7 +388,7 @@ function buildTemplateRoles(s: Record<"roles" | "actions" | "auths" | "org" | "c
     if (!r["Role owner"]) errors.push(`Roles row ${row}: role owner is empty.`);
     const process = (PROCESSES.includes(r["Business process"] as Process) ? r["Business process"] : "Finance") as Process;
     const tcodes = s.actions.filter((a) => a["Role name"] === r["Role name"]).map((a) => String(a["Transaction/App ID"]).trim().toUpperCase());
-    tcodes.forEach((t) => !TCODE_MAP[t] && errors.push(`Role_Actions: ${t} for ${name} is not a known transaction in S4P.`));
+    tcodes.forEach((t) => !TCODE_MAP[t] && errors.push(`Role_Actions: ${t} for ${name} is not a known transaction in SAP S/4HANA.`));
     if (type === "Single" && !tcodes.length) errors.push(`${name} has no transactions in Role_Actions.`);
     const children = s.comp.filter((c) => c["Composite role"] === r["Role name"]).map((c) => c["Single role"]);
     children.forEach((c) => !names.has(c) && !db.roles.some((x) => x.name === c) && errors.push(`Composite_Roles: child role ${c} does not exist.`));

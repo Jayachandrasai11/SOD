@@ -8,10 +8,10 @@ import {
   Menu,
   Moon,
   ScrollText,
-  Search,
   Server,
   Settings,
   ShieldCheck,
+  Sparkles,
   Sun,
   X,
 } from "lucide-react";
@@ -36,6 +36,7 @@ const NAV = [
   { to: "/", label: "Home", icon: Home, end: true },
   { to: "/roles", label: "Roles & Analysis", icon: ShieldCheck },
   { to: "/builder", label: "Role Builder", icon: Hammer },
+  { to: "/fiori", label: "Fiori & AI Catalog", icon: Sparkles },
   { to: "/audit", label: "Audit Log", icon: ScrollText },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -79,91 +80,6 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function GlobalSearch() {
-  const navigate = useNavigate();
-  const [q, setQ] = React.useState("");
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLInputElement>(null);
-  useDbVersion();
-
-  React.useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        ref.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-
-  const s = q.trim().toLowerCase();
-  const results = s
-    ? [
-        ...db.roles.filter((r) => r.name.toLowerCase().includes(s) || r.description.toLowerCase().includes(s)).slice(0, 5).map((r) => ({ kind: "Role", label: r.name, sub: r.description, to: `/roles/${encodeURIComponent(r.name)}` })),
-        ...db.risks.filter((r) => r.id.toLowerCase().includes(s) || r.description.toLowerCase().includes(s)).slice(0, 4).map((r) => ({ kind: "Risk", label: r.description, sub: r.id, to: `/settings?tab=rules&risk=${r.id}` })),
-        ...db.users.filter((u) => u.name.toLowerCase().includes(s) || u.id.toLowerCase().includes(s)).slice(0, 4).map((u) => ({ kind: "User", label: u.name, sub: `${u.id} · ${u.department}`, to: `/roles/analysis?kind=User&subject=${u.id}` })),
-      ]
-    : [];
-
-  return (
-    <div className="relative w-full max-w-md">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-      <input
-        ref={ref}
-        type="search"
-        aria-label="Search roles, risks and users"
-        placeholder="Search roles, risks, users…  (Ctrl K)"
-        className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && results[0]) {
-            navigate(results[0].to);
-            setQ("");
-            setOpen(false);
-          }
-          if (e.key === "Escape") setOpen(false);
-        }}
-      />
-      {open && s && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border bg-popover shadow-lg">
-          {results.length ? (
-            <ul>
-              {results.map((r) => (
-                <li key={r.kind + r.to}>
-                  <button
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      navigate(r.to);
-                      setQ("");
-                      setOpen(false);
-                    }}
-                  >
-                    <span className="w-10 shrink-0 text-[11px] font-semibold uppercase text-muted-foreground">{r.kind}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">{r.label}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{r.sub}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-3 py-4 text-sm text-muted-foreground">No roles, risks or users match “{q}”.</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TopBar({ onMenu }: { onMenu: () => void }) {
   const { theme, toggleTheme, systemId, setSystemId, user, setUser, notifications, markAllRead, jobs } = useApp();
   const navigate = useNavigate();
@@ -192,9 +108,6 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
           ))}
         </SelectContent>
       </Select>
-      <div className="hidden flex-1 justify-center md:flex">
-        <GlobalSearch />
-      </div>
       <div className="ml-auto flex items-center gap-1">
         {jobs.length > 0 && (
           <div className="mr-2 hidden w-48 items-center gap-2 sm:flex" role="status" aria-live="polite">
@@ -295,7 +208,7 @@ export function AppShell() {
       )}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onMenu={() => setMobileOpen(true)} />
-        <main id="main" className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-8">
+        <main id="main" className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 px-4 py-6 md:px-8">
           <Outlet />
         </main>
       </div>
