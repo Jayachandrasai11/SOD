@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { FileDown, Hammer, Lightbulb, ShieldCheck } from "lucide-react";
-import type { RiskHit, SubjectResult } from "@/types";
+import { FileDown, Hammer, Layers, Lightbulb, ShieldCheck } from "lucide-react";
+import type { RiskHit, SubjectResult, User } from "@/types";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -9,22 +9,25 @@ import { HelpTip, LevelChip, RunMeta } from "@/components/common";
 import { db } from "@/services/db";
 import { remediationFor } from "@/services/analysisService";
 import { exportEvidencePdf } from "@/lib/evidence";
-import { fmtDateTime } from "@/lib/utils";
+import { cn, fmtDateTime } from "@/lib/utils";
 
 export function ResultDrawer({
   hit,
   result,
   run,
   onOpenChange,
+  onOpenUser,
 }: {
   hit?: RiskHit;
   result?: SubjectResult;
   run: { runId: string; rulesetVersion: string; snapshot: string };
   onOpenChange: (o: boolean) => void;
+  onOpenUser?: (user: User) => void;
 }) {
   const navigate = useNavigate();
   const risk = hit ? db.risks.find((r) => r.id === hit.riskId) : undefined;
   const rem = result ? remediationFor(result) : undefined;
+  const hitUser = hit?.subjectKind === "User" ? db.users.find((u) => u.id === hit.subject) : undefined;
   // For a user, fix the role that grants the conflicting action
   const fixRole = rem?.fromRole ?? (hit?.subjectKind === "Role" ? hit.subject : hit?.functions[0]?.actions[0]?.grantedBy[0]);
   const editableRole = fixRole && db.roles.find((r) => r.name === fixRole);
@@ -62,6 +65,58 @@ export function ResultDrawer({
                   </div>
                   <p>{hit.mitigation.control}</p>
                   <p className="mt-1 text-xs text-muted-foreground">Valid to {hit.mitigation.validTo}</p>
+                </section>
+              )}
+
+              {hitUser && (
+                <section className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold text-foreground">User Assigned Roles</span>
+                      <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 font-mono text-xs font-bold">
+                        {hitUser.roles.length}
+                      </span>
+                    </div>
+                    {onOpenUser && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs bg-background"
+                        onClick={() => {
+                          onOpenChange(false);
+                          onOpenUser(hitUser);
+                        }}
+                      >
+                        View all {hitUser.roles.length} roles
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {hitUser.name} holds {hitUser.roles.length} roles. Highlighted roles contribute to this SoD conflict:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                    {hitUser.roles.map((rName) => {
+                      const isConflictGrantor = hit.functions.some((f) =>
+                        f.actions.some((a) => a.grantedBy.includes(rName))
+                      );
+                      return (
+                        <span
+                          key={rName}
+                          className={cn(
+                            "font-mono text-[11px] px-2 py-0.5 rounded border inline-flex items-center gap-1",
+                            isConflictGrantor
+                              ? "bg-status-red-bg text-status-red border-status-red/50 font-bold"
+                              : "bg-background text-foreground/80 border-border/60"
+                          )}
+                          title={isConflictGrantor ? `Conflict grantor role for ${hit.riskId}` : rName}
+                        >
+                          {rName}
+                          {isConflictGrantor && <span className="text-[10px] text-status-red">⚠️ Conflicting</span>}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </section>
               )}
 

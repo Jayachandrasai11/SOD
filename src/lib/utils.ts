@@ -14,8 +14,16 @@ const dtf = new Intl.DateTimeFormat("en-GB", {
 });
 const df = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export const fmtDateTime = (iso?: string) => (iso ? dtf.format(new Date(iso)).replace(",", "") : "—");
-export const fmtDate = (iso?: string) => (iso ? df.format(new Date(iso)) : "—");
+export const fmtDateTime = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : dtf.format(d).replace(",", "");
+};
+export const fmtDate = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : df.format(d);
+};
 export const fmtNumber = (n: number) => n.toLocaleString("en-GB");
 
 /** "now" for the mock world – keeps staleness rules deterministic */

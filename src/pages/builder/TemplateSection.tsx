@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FolderOpen, UploadCloud, XCircle } from "lucide-react";
+import { Download, FileSpreadsheet, FolderOpen, Search, UploadCloud, XCircle } from "lucide-react";
 import { EmptyState } from "@/components/common";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,32 @@ import type { Role } from "@/types";
 import { fmtDateTime } from "@/lib/utils";
 import { TemplateDialog } from "../roles/RolesPage";
 
-export function TemplateSection({ onOpenDraft }: { onOpenDraft: (r: Role) => void }) {
+export const TemplateSection = React.memo(function TemplateSection({ onOpenDraft }: { onOpenDraft: (r: Role) => void }) {
   const { can } = useApp();
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [prefill, setPrefill] = React.useState<string[]>([]);
+  const [prefillOpen, setPrefillOpen] = React.useState(false);
+  const [roleQuery, setRoleQuery] = React.useState("");
   const [preview, setPreview] = React.useState<{ file: string; items: TemplateRole[] }>();
   const [include, setInclude] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { data: drafts } = useService(getBuilderDrafts);
+
+  const filteredPrefillRoles = React.useMemo(() => {
+    if (!prefillOpen) return [];
+    const q = roleQuery.trim().toLowerCase();
+    const prefillSet = new Set(prefill);
+    const selectedList = db.roles.filter((r) => prefillSet.has(r.name));
+    const nonSelectedList = db.roles
+      .filter(
+        (r) =>
+          !prefillSet.has(r.name) &&
+          (!q || r.name.toLowerCase().includes(q) || (r.description && r.description.toLowerCase().includes(q)))
+      )
+      .slice(0, 30);
+    return [...selectedList, ...nonSelectedList];
+  }, [prefillOpen, roleQuery, prefill]);
 
   const load = (file: string, items: TemplateRole[]) => {
     setPreview({ file, items });
@@ -60,21 +77,53 @@ export function TemplateSection({ onOpenDraft }: { onOpenDraft: (r: Role) => voi
               <Download className="h-4 w-4 text-primary" aria-hidden /> 1. Download template
             </div>
             <p className="text-sm text-muted-foreground">Blank with examples, or pre-filled with existing roles to use as a starting point.</p>
-            <details className="text-sm">
-              <summary className="cursor-pointer text-primary">Pre-fill with roles ({prefill.length} selected)</summary>
-              <ul className="mt-2 max-h-40 space-y-1 overflow-auto rounded-lg border p-2">
-                {db.roles.map((r) => (
-                  <li key={r.name}>
-                    <label className="flex items-center gap-2 font-mono text-xs">
-                      <Checkbox
-                        checked={prefill.includes(r.name)}
-                        onCheckedChange={(c) => setPrefill((p) => (c ? [...p, r.name] : p.filter((x) => x !== r.name)))}
-                      />
-                      {r.name}
-                    </label>
-                  </li>
-                ))}
-              </ul>
+            <details className="text-sm" onToggle={(e) => setPrefillOpen((e.target as HTMLDetailsElement).open)}>
+              <summary className="cursor-pointer text-primary select-none font-medium">
+                Pre-fill with roles ({prefill.length} selected)
+              </summary>
+              {prefillOpen && (
+                <div className="mt-2 space-y-2 rounded-lg border p-2 bg-muted/20">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      className="flex h-7 w-full rounded border border-input bg-background pl-7 pr-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      placeholder="Filter roles…"
+                      value={roleQuery}
+                      onChange={(e) => setRoleQuery(e.target.value)}
+                    />
+                  </div>
+                  <ul className="max-h-40 space-y-1 overflow-auto">
+                    {filteredPrefillRoles.length === 0 ? (
+                      <li className="text-xs text-muted-foreground py-1 text-center">No matching roles</li>
+                    ) : (
+                      filteredPrefillRoles.map((r) => (
+                        <li key={r.name}>
+                          <label className="flex items-center gap-2 font-mono text-xs cursor-pointer hover:bg-muted/50 p-1 rounded">
+                            <Checkbox
+                              checked={prefill.includes(r.name)}
+                              onCheckedChange={(c) => setPrefill((p) => (c ? [...p, r.name] : p.filter((x) => x !== r.name)))}
+                            />
+                            <span className="truncate">{r.name}</span>
+                          </label>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  {prefill.length > 0 && (
+                    <div className="pt-1 text-[11px] text-muted-foreground flex justify-between items-center border-t border-border/50">
+                      <span>{prefill.length} role(s) selected</span>
+                      <button
+                        type="button"
+                        onClick={() => setPrefill([])}
+                        className="text-primary hover:underline cursor-pointer"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </details>
             <Button variant="outline" onClick={() => setTemplateOpen(true)}>
               <FileSpreadsheet /> Download SoD role template
@@ -201,4 +250,4 @@ export function TemplateSection({ onOpenDraft }: { onOpenDraft: (r: Role) => voi
       <TemplateDialog open={templateOpen} onOpenChange={setTemplateOpen} selected={prefill} />
     </Card>
   );
-}
+});

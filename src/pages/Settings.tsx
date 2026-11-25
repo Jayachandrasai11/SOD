@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { BookOpen, KeyRound, Palette, Plug, Save, Tag, Users } from "lucide-react";
+import { BookOpen, KeyRound, Loader2, Palette, Play, Plug, RefreshCw, Save, ShieldCheck, Tag, Users } from "lucide-react";
 import { PageHeader, Field, LevelChip, HelpTip } from "@/components/common";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";

@@ -38,16 +38,16 @@ interface Ctx {
 const AppContext = React.createContext<Ctx | null>(null);
 
 const initialNotifications: Notification[] = [
-  { id: "n1", title: "Delta sync failed on S4P", body: "Two scheduled runs timed out. Data is 2 days old.", time: "2026-10-23T02:30:00Z", read: false, link: "/settings?tab=connections" },
-  { id: "n2", title: "Ruleset v1.4 awaiting submission", body: "6 unsaved changes in draft.", time: "2026-10-22T15:12:00Z", read: false, link: "/settings?tab=rules" },
-  { id: "n3", title: "Nightly analysis finished", body: "RUN-20261022-0200 · 14 roles need action.", time: "2026-10-22T02:40:00Z", read: true, link: "/roles/analysis" },
+  { id: "n1", title: "SAP BTP CAP Connected", body: "5,312 live roles available on HMF 2023.", time: new Date().toISOString(), read: false, link: "/settings?tab=sapbtp" },
+  { id: "n2", title: "Ruleset v1.4 ready", body: "Active SoD ruleset ready for analysis.", time: new Date().toISOString(), read: false, link: "/rules" },
+  { id: "n3", title: "Live SAP Analysis", body: "Live analysis active for HMF-100 SAP S/4HANA roles.", time: new Date().toISOString(), read: true, link: "/roles/analysis" },
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = React.useState<"light" | "dark">(() =>
     document.documentElement.classList.contains("dark") ? "dark" : "light",
   );
-  const [systemId, setSystemId] = React.useState("S4P-100");
+  const [systemId, setSystemId] = React.useState("HMF-100");
   const [user, setUserState] = React.useState<AppUser>(db.appUsers[0]);
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [notifications, setNotifications] = React.useState(initialNotifications);

@@ -22,15 +22,17 @@ export function PageHeader({
   crumbs,
   actions,
   children,
+  className,
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
   crumbs: Crumb[];
   actions?: React.ReactNode;
   children?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="mb-6 space-y-3">
+    <div className={cn("mb-6 space-y-3", className)}>
       <nav aria-label="Breadcrumb">
         <ol className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
           {crumbs.map((c, i) => (
@@ -206,9 +208,18 @@ export function KpiTile({
 
 // ---------------------------------------------------------------- Run metadata
 
-export function RunMeta({ runId, version, snapshot, className }: { runId: string; version: string; snapshot: string; className?: string }) {
+export function RunMeta({ runId, version, snapshot, system, className }: { runId: string; version: string; snapshot: string; system?: string; className?: string }) {
   return (
-    <dl className={cn("flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground", className)}>
+    <dl className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground", className)}>
+      {system && (
+        <div className="flex items-center gap-1.5">
+          <dt>System</dt>
+          <dd className="inline-flex items-center gap-1 rounded border border-border/80 bg-muted/70 px-2 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {system}
+          </dd>
+        </div>
+      )}
       <div className="flex gap-1">
         <dt>Run ID</dt>
         <dd className="font-mono text-foreground">{runId}</dd>
